@@ -61,7 +61,7 @@ else()
 endif()
 
 # libtirpc
-include_directories(/usr/include/tirpc)
+include_directories(${CMAKE_SOURCE_DIR}/tirpc)
 
 # add the xstream library
 add_subdirectory(xstream)
