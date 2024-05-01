@@ -61,7 +61,11 @@ else()
 endif()
 
 # libtirpc
-include_directories(${CMAKE_SOURCE_DIR}/tirpc)
+include_directories(${CMAKE_SOURCE_DIR}/src/tirpc)
+
+# require standard pthreads
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
 
 # add the xstream library
 add_subdirectory(xstream)
