@@ -1,7 +1,7 @@
 #ifndef _NETCONFIG_H_
 #define _NETCONFIG_H_
 
-#include <features.h>
+//#include <features.h>
 
 #define NETCONFIG "/etc/netconfig"
 #define NETPATH	  "NETPATH"
