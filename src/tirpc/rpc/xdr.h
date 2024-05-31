@@ -41,8 +41,7 @@
 #ifndef _TIRPC_XDR_H
 #define _TIRPC_XDR_H
 #include <stdio.h>
-#include <netinet/in.h>
-
+#include <stdint.h>
 #include <rpc/types.h>
 
 /*

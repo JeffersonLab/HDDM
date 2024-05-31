@@ -224,8 +224,8 @@ namespace digest{
         //cache current digest
         struct result d = result;
         
-        const unsigned long int t = taken();
-        const unsigned long int l = length + t;
+        const size_t t = taken();
+        const size_t l = length + t;
         const char* orig = pbase();
 
         //I could make this a litle more efficient, but since this only occurs at the end, maybe it's ok
@@ -235,12 +235,12 @@ namespace digest{
 
         //pad data
         std::fill(b + t, b + 2 * block_size, '\0');
-        b[t] = 128; //add one bit after data
+        b[t] = -128; //add one bit after data
 
         LOG("\ttaken = " << t << "\tlen=" << l);
 
         //write size of data
-        unsigned long int ll = l * 8; //length in bits not bytes
+        size_t ll = l * 8; //length in bits not bytes
         char* const end = (b + block_size - 8) + (t >= block_size - 8 ? block_size : 0);
         LOG("\tend-b = " << (end - b));
         

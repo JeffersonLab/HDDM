@@ -26,7 +26,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <rpc/xdr.h>
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 #include <xstream/z.h>
 #include <xstream/bz.h>
 #include <xstream/xdr.h>
@@ -162,9 +166,9 @@ class boolean_attribute_t : public attribute_t {
 
 class Particle_attribute_t : public attribute_t {
  public:
-   Particle_attribute_t() : attribute_t("", "Particle_t"), value(Unknown) {}
+   Particle_attribute_t() : attribute_t("", "Particle_t"), value(UnknownParticle) {}
    Particle_attribute_t(XString name) : attribute_t(name, "Particle_t"), 
-                                        value(Unknown) {}
+                                        value(UnknownParticle) {}
    virtual ~Particle_attribute_t() {}
 
    Particle_attribute_t &operator=(const Particle_attribute_t &src) {
@@ -174,7 +178,7 @@ class Particle_attribute_t : public attribute_t {
    }
 
    virtual void reset() {
-      value = Unknown;
+      value = UnknownParticle;
    }
    virtual void set(Particle_t val) {
       value = val;
@@ -566,7 +570,9 @@ class istreambuffer : public std::streambuf {
 
    void seekg(std::streampos pos) {
       reset();
-      gbump(pos);
+      for (; pos > INT_MAX; pos -= INT_MAX)
+         gbump(INT_MAX);
+      gbump(int(pos));
    }
 
    int size() {
@@ -716,9 +722,9 @@ int main(int argC, char* argV[])
    ofs.close();
 
 #if defined OLD_STYLE_XERCES_PARSER
-   DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
 #else
-   DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
 #endif
    if (document == 0)
    {

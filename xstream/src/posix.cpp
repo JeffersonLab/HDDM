@@ -7,7 +7,11 @@
 #include <ctime>
 
 //for read write, etc
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 
 //for errno
 #include <errno.h>
@@ -17,10 +21,9 @@
 
 #include "debug.h"
 
-/*
- * I don't prefix time localtime_r and strftime with std:: because lot's of implementaions are broken and it's an unnecessary purism
- *
- */
+#ifdef _WIN32
+typedef SSIZE_T ssize_t;
+#endif
 
 namespace xstream {
 namespace posix{
@@ -41,11 +44,13 @@ namespace posix{
         //if needed it will be reallocated
         size_t len=512;
         std::string ret;
+        char *buf=(char*)malloc(1);
 
         do {
+            free(buf);
             LOG("\tlen=" << len);
-            char buf[len];
-            size_t cret=::strftime(buf,len,format.c_str(),&tm);
+            buf = (char*)malloc(len);
+            size_t cret=std::strftime(buf,len,format.c_str(),&tm);
 
             if (0 != cret && cret <= len) {
                 buf[len - 1] = '\0'; //just in case
@@ -61,8 +66,9 @@ namespace posix{
     void check_return(int code, const std::string& call) {
         LOG("posix::check_return " << call << " => " << code);
         if (-1 == code) {
-            //XXX please try to use strerror_r instead
-            const std::string desc(strerror(errno));
+            char errmsg[512];
+            ::strerror_r(errno, errmsg, 512);
+            const std::string desc(errmsg);
             LOG("\tthrowing " << errno << " => " << desc);
             throw general_error(call, errno, desc);
         }
@@ -82,20 +88,25 @@ namespace posix{
         ssize_t count;
         
         do {
+#ifndef _WIN32
             count = ::read(fdn, buf, len);
+#else
+            count = ::_read(fdn, buf, (int)len);
+#endif
         } while (-1 == count && EINTR == errno);
 
-        check_return(count, "read");
+        check_return((int)count, "read");
 
         return count;
     }
     
     std::string fd::read(std::streamsize len)
     {
-        char buf[len];
+        char *buf = (char*)malloc(len);
         ssize_t count = read(buf, len);
-
-        return std::string(buf, buf + count);
+        std::string sbuf(buf, buf + count);
+        free(buf);
+        return sbuf;
     }
     
     std::streamsize fd::write(const char* buf, std::streamsize len)
@@ -105,10 +116,14 @@ namespace posix{
         ssize_t count;
         
         do {
+#ifndef _WIN32
             count = ::write(fdn, buf, len);
+#else
+            count = ::_write(fdn, buf, (int)len);
+#endif
         } while (-1 == count && EINTR == errno);
 
-        check_return(count, "write");
+        check_return((int)count, "write");
 
         return count;
     }
@@ -125,7 +140,11 @@ namespace posix{
         LOG("posix::fd::~fd");
         if (dest_close) {
             LOG("\tclosing");
+#ifndef _WIN32
             int cret = ::close(fdn);
+#else
+            int cret = ::_close(fdn);
+#endif
             check_return(cret, "close");
         }
     }

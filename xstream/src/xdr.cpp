@@ -119,7 +119,7 @@ ostream& ostream::operator<<(double v) {
         float binary64;
         uint32_t ui64;
     } _v;
-    _v.binary64 = v;
+    _v.binary64 = (float)v;
     return (*this << _v.ui64);
 }
 
@@ -128,16 +128,18 @@ ostream& ostream::operator<<(double v) {
 istream& istream::operator>>(string &s) {
     uint32_t len;
     (*this) >> len;
-
-    char line[len];
-    _sb->sgetn(line, len);
-    s = string(line, line + len);
+    if (len > 0) {
+        char *line = (char*)malloc(len);
+        _sb->sgetn(line, len);
+        s = string(line, line + len);
+        free(line);
     
-    //mod 4 via bitmask (only works for powers of 2)
-    size_t pad = (4 - len) & 3;
-    //ignore padding zeros
-    char dummy[pad];
-    _sb->sgetn(dummy, pad);
+        //mod 4 via bitmask (only works for powers of 2)
+        size_t pad = (4 - len) & 3;
+        //ignore padding zeros
+        char dummy[4];
+        _sb->sgetn(dummy, pad);
+    }
     return *this;
 }
 

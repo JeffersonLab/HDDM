@@ -25,7 +25,11 @@
 
 #include <particleType.h>
 #include <errno.h>
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <string>
 #include <vector>
@@ -181,6 +185,7 @@ int main(int argC, char* argV[])
       exit(1);
    }
    std::ostringstream tmpFileStr;
+   
    tmpFileStr << "tmp" << getpid();
    std::ofstream ofs(tmpFileStr.str().c_str());
    if (! ofs.is_open())
@@ -240,9 +245,9 @@ int main(int argC, char* argV[])
    ifs.close();
 
 #if defined OLD_STYLE_XERCES_PARSER
-   DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
 #else
-   DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
 #endif
    if (document == 0)
    {
@@ -427,7 +432,7 @@ int main(int argC, char* argV[])
    "      return PyLong_FromLong(*(int*)val);\n"
    "   }\n"
    "   else if (atype == k_hddm_long) {\n"
-   "      return PyLong_FromLong(*(long*)val);\n"
+   "      return PyLong_FromLongLong(*(long long*)val);\n"
    "   }\n"
    "   else if (atype == k_hddm_float) {\n"
    "      return PyFloat_FromDouble(double(*(float*)val));\n"
@@ -568,11 +573,11 @@ int main(int argC, char* argV[])
    "      return NULL;\n"
    "   int len = self->list->size();\n"
    "   if (i < 0 || i >= len) {\n"
-   "      PyErr_Format(PyExc_IndexError, \"index \\%ld out of bounds.\", i);\n"
+   "      PyErr_Format(PyExc_IndexError, \"index %ld out of bounds.\", i);\n"
    "      return NULL;\n"
    "   }\n"
    "   PyObject *elem_obj = _HDDM_Element_new(self->subtype, 0, 0);\n"
-   "   ((_HDDM_Element*)elem_obj)->elem = &(HDDM_Element&)(*self->list)(i);\n"
+   "   ((_HDDM_Element*)elem_obj)->elem = &(HDDM_Element&)(*self->list)((int)i);\n"
    "   ((_HDDM_Element*)elem_obj)->host = self->host;\n"
    "   My_INCREF(self->host);\n"
    "   LOG_NEW(self->subtype);\n"
@@ -1000,7 +1005,7 @@ int main(int argC, char* argV[])
    "      self->fname = new std::string(filename);\n"
    "      self->fstr = new std::ofstream(filename);\n"
    "      if (! self->fstr->good()) {\n"
-   "         PyErr_Format(PyExc_IOError, \"Cannot open output file \\%s\", filename);\n"
+   "         PyErr_Format(PyExc_IOError, \"Cannot open output file %s\", filename);\n"
    "         return -1;\n"
    "      }\n"
    "      try {\n"
@@ -1084,7 +1089,7 @@ int main(int argC, char* argV[])
    "static PyObject*\n"
    "_ostream_getRecordsWritten(_ostream *self, void *closure)\n"
    "{\n"
-   "   int records = 0;\n"
+   "   size_t records = 0;\n"
    "   if (self->ostr != 0)\n"
    "      try {\n"
    "         records = self->ostr->getRecordsWritten();\n"
@@ -1093,13 +1098,13 @@ int main(int argC, char* argV[])
    "         PyErr_SetString(PyExc_RuntimeError, e.what());\n"
    "         return NULL;\n"
    "      }\n"
-   "   return PyLong_FromLong(records);\n"
+   "   return PyLong_FromLongLong(records);\n"
    "}\n"
    "\n"
    "static PyObject*\n"
    "_ostream_getBytesWritten(_ostream *self, void *closure)\n"
    "{\n"
-   "   int bytes = 0;\n"
+   "   size_t bytes = 0;\n"
    "   if (self->ostr != 0)\n"
    "      try {\n"
    "         bytes = self->ostr->getBytesWritten();\n"
@@ -1108,7 +1113,7 @@ int main(int argC, char* argV[])
    "         PyErr_SetString(PyExc_RuntimeError, e.what());\n"
    "         return NULL;\n"
    "      }\n"
-   "   return PyLong_FromLong(bytes);\n"
+   "   return PyLong_FromLongLong(bytes);\n"
    "}\n"
    "\n"
    "static PyObject*\n"
@@ -1282,13 +1287,26 @@ int main(int argC, char* argV[])
    "      if (self->fstr != 0)\n"
    "         delete self->fstr;\n"
    "      self->fname = new std::string(filename);\n"
-   "      self->fstr = new std::ifstream(filename);\n"
-   "      if (! self->fstr->good()) {\n"
-   "         PyErr_Format(PyExc_IOError, \"Cannot open input file \\%s\", filename);\n"
+   "      if (strncmp(filename, \"http://\", 7) == 0 || strncmp(filename, \"https://\", 8) == 0) {\n"
+   "         PyErr_Format(PyExc_IOError, \"Input streaming over http[s] disabled, see build options\");\n"
    "         return -1;\n"
    "      }\n"
+   "      else if (strncmp(filename, \"root://\", 7) == 0 || strncmp(filename, \"xrootd://\", 9) == 0) {\n"
+   "         PyErr_Format(PyExc_IOError, \"Input streaming over xrootd disabled, see build options\");\n"
+   "         return -1;\n"
+   "      }\n"
+   "      else {\n"
+   "         self->fstr = new std::ifstream(filename);\n"
+   "         if (! self->fstr->good()) {\n"
+   "            PyErr_Format(PyExc_IOError, \"Cannot open input file %s\", filename);\n"
+   "            return -1;\n"
+   "         }\n"
+   "      }\n"
    "      try {\n"
-   "         self->istr = new istream(*self->fstr);\n"
+   "         if (self->fstr)\n"
+   "            self->istr = new istream(*self->fstr);\n"
+   "         else\n"
+   "            PyErr_Format(PyExc_IOError, \"Cannot access input file %s\", filename);\n"
    "      }\n"
    "      catch (std::exception& e) {\n"
    "         PyErr_SetString(PyExc_RuntimeError, e.what());\n"
@@ -1354,7 +1372,7 @@ int main(int argC, char* argV[])
    "static PyObject*\n"
    "_istream_getRecordsRead(_istream *self, void *closure)\n"
    "{\n"
-   "   int records = 0;\n"
+   "   size_t records = 0;\n"
    "   if (self->istr != 0)\n"
    "      try {\n"
    "         records = self->istr->getRecordsRead();\n"
@@ -1363,13 +1381,13 @@ int main(int argC, char* argV[])
    "         PyErr_SetString(PyExc_RuntimeError, e.what());\n"
    "         return NULL;\n"
    "      }\n"
-   "   return PyLong_FromLong(records);\n"
+   "   return PyLong_FromLongLong(records);\n"
    "}\n"
    "\n"
    "static PyObject*\n"
    "_istream_getBytesRead(_istream *self, void *closure)\n"
    "{\n"
-   "   int bytes = 0;\n"
+   "   size_t bytes = 0;\n"
    "   if (self->istr != 0)\n"
    "      try {\n"
    "         bytes = self->istr->getBytesRead();\n"
@@ -1378,7 +1396,7 @@ int main(int argC, char* argV[])
    "         PyErr_SetString(PyExc_RuntimeError, e.what());\n"
    "         return NULL;\n"
    "      }\n"
-   "   return PyLong_FromLong(bytes);\n"
+   "   return PyLong_FromLongLong(bytes);\n"
    "}\n"
    "\n"
    "static PyObject*\n"
@@ -1924,6 +1942,7 @@ int main(int argC, char* argV[])
    "# This file was generated by the hddm-py utility\n"
    "# from the project https://github.com/rjones30/HDDM\n"
    "#\n"
+   "import glob\n"
    "import sys\n"
    "import os\n"
    "from distutils.core import setup, Extension\n"
@@ -1944,12 +1963,7 @@ int main(int argC, char* argV[])
    "if len(sys.argv) == 1:\n"
    "   sys.argv += ['build', '-b', build_dir]\n"
    "\n"
-   "source_dir = os.path.realpath(__file__)\n"
-   "m = re.sub(r'/[^/]*$', '', source_dir)\n"
-   "if m:\n"
-   "   source_dir = m\n"
-   "else:\n"
-   "   source_dir = '.'\n"
+   "source_dir = os.path.dirname(os.path.realpath(__file__))\n"
    "if 'HDDM_DIR' in os.environ:\n"
    "   hddm_dir = os.environ['HDDM_DIR']\n"
    "else:\n"
@@ -1958,19 +1972,61 @@ int main(int argC, char* argV[])
    "   for key in os.environ:\n"
    "     print('  {0}: {1}'.format(key, os.environ[key]))\n"
    "   sys.exit(1)\n"
-   "source_file = 'pyhddm_" + classPrefix + ".cxx'\n"
-   "source_files = [source_file, source_dir + '/hddm_" + classPrefix + "++.cpp']\n"
-   "copyfile(source_dir + '/pyhddm_" + classPrefix + ".cpy', source_file)\n"
-   "my_include_dirs = [source_dir, hddm_dir + '/include',]\n"
-   "my_library_dirs = [hddm_dir + '/lib', '/usr/lib64',]\n"
-   "my_libraries = ['xstream', 'bz2', 'z']\n"
+   "source_file = 'pyhddm_" + classPrefix + ".cpp'\n"
+   "source_files = [source_file, os.path.join(source_dir, 'hddm_" + classPrefix + "++.cpp')]\n"
+   "copyfile(os.path.join(source_dir, 'pyhddm_" + classPrefix + ".cpy'), source_file)\n"
+   "my_include_dirs = [source_dir, os.path.join(hddm_dir, 'include')]\n"
+   "my_library_dirs = [os.path.join(hddm_dir, 'lib'),\n"
+   "                   os.path.join(hddm_dir, 'lib64'),\n"
+   "                   os.path.join(os.sep, 'usr', 'lib64'),\n"
+   "                  ]\n"
+   "my_libraries = [\n"
+   "                'xstream',\n"
+   "                'bz2',\n"
+   "               ]\n"
+   "for dir in my_library_dirs:\n"
+   "   for libz in ['libz.a', 'libz.so']:\n"
+   "      if os.path.exists(os.path.join(dir, libz)):\n"
+   "          my_libraries.append('z')\n"
+   "          break\n"
+   "   for zlib in ['zlibstatic.lib']:\n"
+   "      if os.path.exists(os.path.join(dir, zlib)):\n"
+   "          my_libraries.append('zlibstatic')\n"
+   "          break\n"
+   "   for zlib in ['zlib.lib']:\n"
+   "      if os.path.exists(os.path.join(dir, zlib)):\n"
+   "          my_libraries.append('zlib')\n"
+   "          break\n"
+   "   for libpthread in ['libpthread.a', 'libpthread.so']:\n"
+   "      if os.path.exists(os.path.join(dir, libpthread)):\n"
+   "          my_libraries.append('pthread')\n"
+   "          break\n"
+   "   for libpthread in ['libpthreadVC3.lib', 'pthreadVC3.lib']:\n"
+   "      if os.path.exists(os.path.join(dir, libpthread)):\n"
+   "          my_libraries.append('libpthreadVC3')\n"
+   "          my_libraries.append('Ws2_32')\n"
+   "          break\n"
+   "if 'XSTREAM_SRC' in os.environ:\n"
+   "   xstream_src = os.environ['XSTREAM_SRC']\n"
+   "   my_include_dirs += [os.path.join(xstream_src, 'include')]\n"
+   "if 'HDDM_SRC' in os.environ:\n"
+   "   hddm_src = os.environ['HDDM_SRC']\n"
+   "   my_include_dirs += [hddm_src]\n"
+   "if 'XSTREAM_DIR' in os.environ:\n"
+   "   xstream_dir = os.environ['XSTREAM_DIR']\n"
+   "   xstream_libdir = os.path.join(xstream_dir, 'src')\n"
+   "   for lib in os.listdir(xstream_libdir):\n"
+   "      if lib == 'libxstream.a':\n"
+   "         my_library_dirs += [xstream_libdir]\n"
+   "      elif lib == 'Release':\n"
+   "         my_library_dirs += [os.path.join(xstream_libdir, 'Release')]\n"
    "my_extra_cxxflags = ['-std=c++11']\n"
    "if 'HDF5_INCLUDE_DIRS' in os.environ:\n"
    "   for idir in os.environ['HDF5_INCLUDE_DIRS'].split(':'):\n"
    "      my_include_dirs += [idir,]\n"
    "if 'HDF5_LIBRARIES' in os.environ:\n"
    "   for lib in os.environ['HDF5_LIBRARIES'].split(':'):\n"
-   "      my_libraries += [lib,]\n"
+   "      my_libraries += [re.sub('\\.so$', '', re.sub('.*/lib', '', lib))]\n"
    "   my_extra_cxxflags += ['-DHDF5_SUPPORT']\n"
    "\n"
    "module1 = Extension('hddm_" + classPrefix + "',\n"
@@ -1987,12 +2043,16 @@ int main(int argC, char* argV[])
    "\n"
    "os.remove(source_file)\n"
    "for dname in os.listdir(build_dir):\n"
-   "    for soname in os.listdir(build_dir + '/' + dname):\n"
-   "        if re.match(r'.*\\.so', soname):\n"
-   "            src = build_dir + '/' + dname + '/' + soname\n"
-   "            dest = source_dir + '/' + soname\n"
+   "    for dll in os.listdir(os.path.join(build_dir, dname)):\n"
+   "        if re.match(r'.*\\.so', dll):\n"
+   "            src = os.path.join(build_dir, dname, dll)\n"
+   "            dest = os.path.join(source_dir, dll)\n"
    "            copyfile(src, dest)\n"
-   "rmtree(build_dir)\n"
+   "        elif re.match(r'.*\\.pyd', dll):\n"
+   "            src = os.path.join(build_dir, dname, dll)\n"
+   "            dest = os.path.join(source_dir, dll)\n"
+   "            copyfile(src, dest)\n"
+   "#rmtree(build_dir)\n"
    ;
 
    XMLPlatformUtils::Terminate();
@@ -2098,7 +2158,7 @@ void CodeBuilder::checkConsistency(DOMElement* el, DOMElement* elref)
 
    DOMNamedNodeMap* oldAttr = elref->getAttributes();
    DOMNamedNodeMap* newAttr = el->getAttributes();
-   unsigned int listLength = oldAttr->getLength();
+   size_t listLength = oldAttr->getLength();
    for (unsigned int n = 0; n < listLength; n++)
    {
       XtString nameS(oldAttr->item(n)->getNodeName());
@@ -2328,7 +2388,7 @@ void CodeBuilder::writeClassdef(DOMElement* el)
          }
          else if (typeS == "long")
          {
-            pyFile << "   return PyLong_FromLong(self->elem->" 
+            pyFile << "   return PyLong_FromLongLong(self->elem->" 
                    << getS << "());\n";
          }
          else if (typeS == "float")
@@ -2374,7 +2434,7 @@ void CodeBuilder::writeClassdef(DOMElement* el)
          }
          else if (guessType(typeS) == "long")
          {
-            pyFile << "   return PyLong_FromLong(self->elem->" 
+            pyFile << "   return PyLong_FromLongLong(self->elem->" 
                    << getS << "());\n";
          }
          else if (guessType(typeS) == "float")
@@ -2428,7 +2488,7 @@ void CodeBuilder::writeClassdef(DOMElement* el)
       }
       else if (typeS == "long")
       {
-         pyFile << "   return PyLong_FromLong(self->elem->" 
+         pyFile << "   return PyLong_FromLongLong(self->elem->" 
                 << getS << "());\n";
       }
       else if (typeS == "float")
@@ -2472,7 +2532,7 @@ void CodeBuilder::writeClassdef(DOMElement* el)
       }
       else if (guessType(typeS) == "long")
       {
-         pyFile << "   return PyLong_FromLong(self->elem->" 
+         pyFile << "   return PyLong_FromLongLong(self->elem->" 
                 << getS << "());\n";
       }
       else if (guessType(typeS) == "float")
@@ -2549,7 +2609,7 @@ void CodeBuilder::writeClassdef(DOMElement* el)
                    "   if (var == -1 && PyErr_Occurred()) {\n"
                    "      return 1;\n"
                    "   }\n"
-                   "   self->elem->" << setS << "(var);\n"
+                   "   self->elem->" << setS << "((float)var);\n"
                    "   return 0;\n"
                    "}\n\n";
          setters[attrS] = 1;
@@ -3045,7 +3105,7 @@ void CodeBuilder::constructGroup(DOMElement* el)
 
    parentList.push_back(el);
    DOMNodeList* contList = el->getChildNodes();
-   int contLength = contList->getLength();
+   size_t contLength = contList->getLength();
    for (int c = 0; c < contLength; c++)
    {
       DOMNode* cont = contList->item(c);
@@ -3124,7 +3184,7 @@ void CodeBuilder::constructDocument(DOMElement* el)
    XtString tagS(el->getTagName());
    pyFile << "<" << tagS;
    DOMNamedNodeMap* attrList = el->getAttributes();
-   int attrListLength = attrList->getLength();
+   size_t attrListLength = attrList->getLength();
    for (int a = 0; a < attrListLength; a++)
    {
       DOMNode* node = attrList->item(a);
@@ -3134,7 +3194,7 @@ void CodeBuilder::constructDocument(DOMElement* el)
    }
 
    DOMNodeList* contList = el->getChildNodes();
-   int contListLength = contList->getLength();
+   size_t contListLength = contList->getLength();
    if (contListLength > 0)
    {
       pyFile << ">\\n\"" << std::endl;
@@ -3207,5 +3267,5 @@ Particle_t lookupParticle(const std::string &name)
          return (Particle_t)p;
       }
    }
-   return Unknown;
+   return UnknownParticle;
 }

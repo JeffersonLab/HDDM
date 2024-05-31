@@ -8,6 +8,7 @@
 #define __XSTREAM_Z_H
 
 #include <xstream/config.h>
+#include <pthread.h>
 
 #if HAVE_LIBZ
 
@@ -152,7 +153,7 @@ class ostreambuf: public common, public xstream::ostreambuf {
          * \param f kind of flush to do see flush_kind
          *
          */
-        int flush(flush_kind f, const char *appendbuf=0, int appendsize=0);
+        int flush(flush_kind f, const char *appendbuf=0, std::streamsize appendsize=0);
 
     public:
         /*!
@@ -203,7 +204,7 @@ class istreambuf: public common, public std::streambuf{
         std::streamsize block_size;
         std::streampos block_next;
         std::streamoff new_block_start;
-        unsigned int new_block_offset;
+        std::streamoff new_block_offset;
         typedef struct {
             int len;
             char buf[64];
@@ -251,7 +252,7 @@ class istreambuf: public common, public std::streambuf{
         std::streamsize get_block_size() {
             return block_size;
         }
-        void set_new_position(std::streamoff start, unsigned int offset) {
+        void set_new_position(std::streamoff start, std::streamoff offset) {
            new_block_start = start;
            new_block_offset = offset;
         }

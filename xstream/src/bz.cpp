@@ -4,7 +4,11 @@
 #if HAVE_LIBBZ2
 
 #include <stdint.h>
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 #include <string.h>
 #include <cstring>
 #include <algorithm>
@@ -14,7 +18,9 @@
 #include <xstream/except/bz.h>
 
 #include <bzlib.h>
+#ifndef _WIN32
 #include <arpa/inet.h>
+#endif
 
 #include "debug.h"
 
@@ -126,7 +132,7 @@ namespace bz {
         z_strm->bzfree = NULL;
         z_strm->opaque = NULL;
         //buffers
-        z_strm->avail_out = out.size;
+        z_strm->avail_out = (unsigned int)out.size;
         z_strm->next_out = out.buf;
 
         z_strm->avail_in = 0;
@@ -268,7 +274,7 @@ namespace bz {
     std::streamsize ostreambuf::xsputn(const char *buffer, std::streamsize n) {
         LOG("bz::ostreambuf::xsputn(" << buffer << "," << n << ")");
 
-        return flush(no_sync, buffer, n);
+        return flush(no_sync, buffer, (int)n);
     }
 
     int ostreambuf::flush(flush_kind f, const char *appendbuf, int appendsize) {
@@ -280,8 +286,8 @@ namespace bz {
         int written;
         if (in_s > 0) {
             z_strm->next_in = pbase();
-            z_strm->avail_in = in_s;
-            written = in_s;
+            z_strm->avail_in = (unsigned int)in_s;
+            written = (int)in_s;
         } else if (appendsize > 0) {
             z_strm->next_in = (char*)appendbuf;
             z_strm->avail_in = appendsize;
@@ -362,7 +368,7 @@ namespace bz {
                 std::streamsize count = out.size - z_strm->avail_out;
                 if (count > 0) {  // ignore empty blocks
                     LOG("\twriting " << count << " bytes");
-                    int size = htonl(count);
+                    int size = htonl((unsigned int)count);
                     MUTEX_LOCK
                     const std::streamsize wrote = _sb->sputn((char*)&size, 4) +
                                                   _sb->sputn(out.buf, count);
@@ -378,7 +384,7 @@ namespace bz {
                     MUTEX_UNLOCK
                 }
                 z_strm->next_out = out.buf;
-                z_strm->avail_out = out.size;
+                z_strm->avail_out = (unsigned int)out.size;
             }
 
             if ((0 == z_strm->avail_out) && (0 != z_strm->avail_in)) {
@@ -406,7 +412,7 @@ namespace bz {
             z_strm->bzalloc = NULL;
             z_strm->bzfree = NULL;
             z_strm->opaque = NULL;
-            z_strm->avail_out = out.size;
+            z_strm->avail_out = (unsigned int)out.size;
             z_strm->next_out = out.buf;
             z_strm->avail_in = 0;
             z_strm->next_in = in.buf;
@@ -488,9 +494,9 @@ namespace bz {
             }
             while (block_offset < new_block_offset) {
                 z_strm->next_out = out.buf;
-                z_strm->avail_out = new_block_offset - block_offset;
+                z_strm->avail_out = (unsigned int)(new_block_offset - block_offset);
                 if (z_strm->avail_out > out.size) {
-                    z_strm->avail_out = out.size;
+                    z_strm->avail_out = (unsigned int)out.size;
                 }
                 block_offset += z_strm->avail_out;
                 decompress();
@@ -499,7 +505,7 @@ namespace bz {
             new_block_offset = 0;
         }
 
-        z_strm->avail_out = out.size;
+        z_strm->avail_out = (unsigned int)out.size;
         z_strm->next_out = out.buf;
         if (0 < z_strm->avail_in) {
             LOG("\tdata in queue, inflating");
@@ -537,8 +543,8 @@ namespace bz {
             else
             {
                 std::streamsize available = egptr() - gptr();
-                int waste = new_block_offset - block_offset;
-                waste = (available < waste)? available : waste;
+                int waste = (int)(new_block_offset - block_offset);
+                waste = (available < waste)? (int)available : waste;
                 if (waste > 0) {
                     gbump(waste);
                     block_offset += waste;
@@ -546,9 +552,9 @@ namespace bz {
             }
             while (block_offset < new_block_offset) {
                 z_strm->next_out = out.buf;
-                z_strm->avail_out = new_block_offset - block_offset;
+                z_strm->avail_out = (unsigned int)(new_block_offset - block_offset);
                 if (z_strm->avail_out > out.size) {
-                    z_strm->avail_out = out.size;
+                    z_strm->avail_out = (unsigned int)out.size;
                 }
                 block_offset += z_strm->avail_out;
                 decompress();
@@ -559,15 +565,15 @@ namespace bz {
 
         //try to satisfy request from buffered input
         std::streamsize available = egptr() - gptr();
-        int read = (available >= n)? n : available;
+        size_t read = (available >= n)? n : (int)available;
         if (read) {
             std::copy(gptr(), gptr() + read, buffer);
-            gbump(read);
+            gbump((int)read);
             block_offset += read;
         }
 
         //inflate the rest directly into the user's buffer
-        if (read < n) {
+        if (read < (int)n) {
             if (end) {
                 LOG("\tend of stream (EOF)");
                 //signal the stream has reached it's end
@@ -575,7 +581,7 @@ namespace bz {
             }
 
             z_strm->next_out = buffer + read;
-            z_strm->avail_out = n - read;
+            z_strm->avail_out = (unsigned int)(n - read);
 
             if (0 < z_strm->avail_in) {
                 decompress();
@@ -596,7 +602,7 @@ namespace bz {
     void istreambuf::read_decompress() {
         LOG("bz::istreambuf::read_decompress ");
         bool reinit_decompressor = false;
-        int read;
+        size_t read;
         if (block_size < 0) { // stream has no blocksize markers
             MUTEX_LOCK
             if (new_block_start > 0) {
@@ -647,7 +653,7 @@ namespace bz {
                 else {
                     read = _sb->sgetn(in.buf, block_size - read);
                 }
-                leftovers->len = _sb->sgetn(leftovers->buf, 8);
+                leftovers->len = (int)_sb->sgetn(leftovers->buf, 8);
                 if (leftovers->len > 4) {
                     std::memcpy(in.buf + read, leftovers->buf + 4, 
                                                leftovers->len - 4);
@@ -743,7 +749,7 @@ namespace bz {
             z_strm->next_out = saved_buffer;
         }
         z_strm->next_in = in.buf;
-        z_strm->avail_in = read;
+        z_strm->avail_in = (unsigned int)read;
         decompress();
     }
 

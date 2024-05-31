@@ -34,9 +34,10 @@ find_package(ROOT QUIET)
 # HDF5 support
 if(DEFINED HDF5_ROOT)
     message("Looking in ${HDF5_ROOT} for local HDF5 installation")
-    find_package(HDF5 PATHS ${HDF5_ROOT} REQUIRED NO_DEFAULT_PATH)
+    find_package(HDF5 REQUIRED COMPONENTS C CXX HL PATHS ${HDF5_ROOT} NO_DEFAULT_PATH)
+else()
+    find_package(HDF5 REQUIRED COMPONENTS C CXX HL)
 endif()
-find_package(HDF5 QUIET)
 
 # xalan-j2 package
 if(NOT DEFINED XALANJ2_PATH)
@@ -62,10 +63,7 @@ endif()
 
 # libtirpc
 include_directories(${CMAKE_SOURCE_DIR}/src/tirpc)
-
-# require standard pthreads
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
+install(FILES ${CMAKE_SOURCE_DIR}/src/unistd_win32.h DESTINATION include)
 
 # add the xstream library
 add_subdirectory(xstream)
@@ -84,7 +82,7 @@ add_subdirectory(models)
 add_subdirectory(examples)
 
 # define a separate target for the example python modules
-add_custom_target(modules_install
+add_custom_target(modules_install ALL
       COMMAND ${CMAKE_SOURCE_DIR}/scripts/python_module_installer.sh
               ${CMAKE_BINARY_DIR}/models 
               ${CMAKE_INSTALL_PREFIX}

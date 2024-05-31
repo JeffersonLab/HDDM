@@ -40,6 +40,47 @@
 
 #include <sys/types.h>
 
+/* add some types from sys/types.h that are missing in the MS Visual Studio */
+#ifdef _WIN32
+#include <winsock.h>
+#ifndef _U_INT8_T
+#define _U_INT8_T 1
+typedef uint8_t u_int8_t;
+typedef uint16_t u_int16_t;
+typedef uint32_t u_int32_t;
+typedef uint64_t u_int64_t;
+typedef unsigned long long u_quad_t;
+typedef long long quad_t;
+typedef uint64_t caddr_t;
+typedef long ssize_t;
+#endif
+#ifndef _FDOPEN
+#define _FDOPEN 1
+#define fdopen(fildes, mode) _fdopen(fildes, mode)
+#endif
+#ifndef _FTELLI64
+#define _FTELLI64 1
+#define ftello(stream) _ftelli64(stream)
+#endif
+#ifndef _FSEEKI64
+#define _FSEEKI64 1
+#define fseeko(stream, offset, origin) _fseeki64(stream, offset, origin)
+#endif
+#ifndef _OFF64_T
+#define _OFF64_T 1
+#define off_t long long int
+#endif
+#ifndef _SSCANF_S
+#define _SSCANF_S 1
+#define sscanf(...) sscanf_s(__VA_ARGS__)
+#endif
+
+#else
+#define strncpy_s(dest, destsz, src, count) strncpy(dest, src, count)
+#define strtok_s(str, delim, ptr) strtok(str, delim)
+#define fopen_s(fdesc, filename, filemode) (*(fdesc) = fopen(filename, filemode)), errno
+#endif
+
 typedef int32_t bool_t;
 typedef int32_t enum_t;
 
@@ -92,8 +133,13 @@ typedef __caddr_t caddr_t;
 # define __daddr_t_defined
 #endif
 
+#ifdef _MSC_VER
+#include <time.h>
+#else
 #include <sys/time.h>
 #include <sys/param.h>
+#endif
+
 #include <stdlib.h>
 #include <netconfig.h>
 

@@ -83,7 +83,11 @@
 #include <ctype.h>
 #include <stdlib.h>
 #include <stdio.h>
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <string>
 #include <vector>
@@ -283,9 +287,9 @@ int main(int argC, char* argV[])
    ifs.close();
 
 #if defined OLD_STYLE_XERCES_PARSER
-   DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
 #else
-   DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
 #endif
    if (document == 0)
    {
@@ -406,7 +410,6 @@ int main(int argC, char* argV[])
          << "#include <errno.h>"                                << std::endl
          << "#include <rpc/xdr.h>"                              << std::endl
          << "#include <string.h>"                               << std::endl
-         << "#include <strings.h>"                              << std::endl
          << "#include <particleType.h>"                         << std::endl
                                                                 << std::endl
          << "typedef char* string_t;        "
@@ -556,6 +559,7 @@ int main(int argC, char* argV[])
    builder.cFile                                                << std::endl
          << "#ifndef _FILE_OFFSET_BITS"                         << std::endl
          << "# define _FILE_OFFSET_BITS 64"                     << std::endl
+         << "# define _LARGEFILE64_SOURCE 1"                    << std::endl
          << "#endif"                                            << std::endl
                                                                 << std::endl
          << "static off_t xdr_getpos64(XDR *xdrs)"              << std::endl
@@ -573,7 +577,7 @@ int main(int argC, char* argV[])
          << "      return ((fseeko((FILE *)xdrs->x_private, pos, 0) < 0)? FALSE : TRUE);"
                                                                 << std::endl
          << "   }"                                              << std::endl
-         << "   return xdr_setpos(xdrs,pos);"                   << std::endl
+         << "   return xdr_setpos(xdrs,(int)pos);"              << std::endl
          << "}"                                                 << std::endl;
 
    builder.constructUnpackers();
@@ -683,7 +687,7 @@ void CodeBuilder::checkConsistency(DOMElement* el, DOMElement* elref)
 
    DOMNamedNodeMap* oldAttr = elref->getAttributes();
    DOMNamedNodeMap* newAttr = el->getAttributes();
-   unsigned int listLength = oldAttr->getLength();
+   size_t listLength = oldAttr->getLength();
    for (unsigned int n = 0; n < listLength; n++)
    {
       XtString nameS(oldAttr->item(n)->getNodeName());
@@ -787,7 +791,7 @@ void CodeBuilder::writeHeader(DOMElement* el)
          << "typedef struct {"                                  << std::endl;
 
    DOMNamedNodeMap* varList = el->getAttributes();
-   int varCount = varList->getLength();
+   size_t varCount = varList->getLength();
    for (int v = 0; v < varCount; v++)
    {
       DOMNode* var = varList->item(v);
@@ -832,7 +836,7 @@ void CodeBuilder::writeHeader(DOMElement* el)
    }
 
    DOMNodeList* contList = el->getChildNodes();
-   int contLength = contList->getLength();
+   size_t contLength = contList->getLength();
    for (int c = 0; c < contLength; c++)
    {
       DOMNode* cont = contList->item(c);
@@ -892,7 +896,7 @@ void CodeBuilder::constructGroup(DOMElement* el)
    tagList.push_back(el);
 
    DOMNodeList* contList = el->getChildNodes();
-   int contLength = contList->getLength();
+   size_t contLength = contList->getLength();
    for (int c = 0; c < contLength; c++)
    {
       DOMNode* cont = contList->item(c);
@@ -946,7 +950,7 @@ void CodeBuilder::constructConstructors()
                << "   for (i=0; i<n; i++) {"                    << std::endl
                << "      " << simpleType << "* pp = &p->in[i];" << std::endl;
          DOMNamedNodeMap* varList = tagEl->getAttributes();
-         int varCount = varList->getLength();
+         size_t varCount = varList->getLength();
          for (int v = 0; v < varCount; v++)
          {
             DOMNode* var = varList->item(v);
@@ -1018,7 +1022,7 @@ void CodeBuilder::constructConstructors()
                << "(" << simpleType << "*)MALLOC(size,\""
                << simpleType << "\");"                          << std::endl;
          DOMNamedNodeMap* varList = tagEl->getAttributes();
-         int varCount = varList->getLength();
+         size_t varCount = varList->getLength();
          for (int v = 0; v < varCount; v++)
          {
             DOMNode* var = varList->item(v);
@@ -1123,7 +1127,7 @@ void CodeBuilder::constructUnpackers()
 
       if (rep > 1)
       {
-         cFile << "      int m;"                                << std::endl
+         cFile << "      unsigned int m;"                       << std::endl
                << "      unsigned int mult;"                    << std::endl
                << "      if (! xdr_u_int(xdrs,&mult))"          << std::endl
                << "         XDRerror();"                        << std::endl;
@@ -1322,7 +1326,7 @@ void CodeBuilder::constructReadFunc(DOMElement* topEl)
                    " to read this file.\\n\");"                 << std::endl
          << "      exit(9);"                                    << std::endl
          << "   }"                                              << std::endl
-         << "   else if (size + 4 > fp->iobuffer_size)"         << std::endl
+         << "   else if ((int)size + 4 > fp->iobuffer_size)"    << std::endl
          << "   {"                                              << std::endl
          << "      xdr_destroy(fp->xdrs);"                      << std::endl
          << "      char *newbuf = (char*)malloc(fp->iobuffer_size *= 2);"
@@ -1383,7 +1387,7 @@ void CodeBuilder::constructSkipFunc()
          <<           "interface to read this file.\\n\");"     << std::endl
          << "         exit(9);"                                 << std::endl
          << "      }"                                           << std::endl
-         << "      else if (size + 4 > fp->iobuffer_size)"      << std::endl
+         << "      else if ((int)size + 4 > fp->iobuffer_size)" << std::endl
          << "      {"                                           << std::endl
          << "         xdr_destroy(fp->xdrs);"                   << std::endl
          << "         char *newbuf = (char*)malloc(fp->iobuffer_size *= 2);"
@@ -1468,7 +1472,7 @@ void CodeBuilder::constructPackers()
             << "{"                                              << std::endl;
       if (rep > 1)
       {
-         cFile   << "   int m=0;"                               << std::endl;
+         cFile   << "   unsigned int m=0;"                      << std::endl;
       }
       cFile << "   unsigned int size=0;"                        << std::endl
             << "   off_t base,start,end;"                       << std::endl
@@ -1640,11 +1644,11 @@ void CodeBuilder::constructPackers()
       cFile << "   }"                                           << std::endl
             << "   end = xdr_getpos64(xdrs);"                   << std::endl
             << "   xdr_setpos64(xdrs,base);"                    << std::endl
-            << "   size = end-start;"                           << std::endl;
+            << "   size = (unsigned int)(end-start);"           << std::endl;
       if (tagT.find("_HDDM") != tagT.npos)
       {
          cFile
-            << "   if (size + 4 > hddm_" + classPrefix + "_buffersize) {"
+            << "   if ((int)size + 4 > hddm_" + classPrefix + "_buffersize) {"
                                                                 << std::endl
             << "      fprintf(stderr,\"hddm error - \""         << std::endl
             << "      \"output buffer overflow on hddm stream,"
@@ -1717,14 +1721,14 @@ void CodeBuilder::constructFlushFunc(DOMElement* el)
          << "      }"                                           << std::endl
          << "      else if (size > 0)"                          << std::endl
          << "      {"                                           << std::endl
-         << "         int wsize = fwrite(fp->iobuffer,1,size+4,fp->fd);"
+         << "         size_t wsize = fwrite(fp->iobuffer,1,size+4,fp->fd);"
                                                                 << std::endl
          << "         if (wsize != size + 4)"                   << std::endl
          << "         {"                                        << std::endl
          << "            fprintf(stderr,\"HDDM Error: error writing to \""
                                                                 << std::endl
          << "                    \"output hddm file.\\n\");"    << std::endl
-         << "            fprintf(stderr,\"%d bytes of %d "
+         << "            fprintf(stderr,\"%zd bytes of %d "
                                  "actually written.\\n\","      << std::endl
          << "                    wsize, size+4);"               << std::endl
          << "            exit(9);"                              << std::endl
@@ -1757,18 +1761,20 @@ void CodeBuilder::writeMatcher()
    cFile                                                        << std::endl
          << "static int getTag(char* d, char* tag)"             << std::endl
          << "{"                                                 << std::endl
-         << "   int level;"                                     << std::endl
+         << "   size_t level;"                                  << std::endl
          << "   char* token;"                                   << std::endl
          << "   char line[500];"                                << std::endl
-         << "   strncpy(line,d,499);"                           << std::endl
+         << "   strncpy_s(line,500,d,499);"                     << std::endl
          << "   line[499] = 0;"                                 << std::endl
-         << "   level = index(line,'<')-line;"                  << std::endl
+         << "   level = strchr(line,'<')-line;"                 << std::endl
+         << "   char **ptr = 0;"                                << std::endl
          << "   if (level < 500 &&"                             << std::endl
-         << "      (token = strtok(line+level+1,\" >\")))"      << std::endl
+         << "      (token = strtok_s(line+level+1,"
+         << "\" >\",ptr)))"                                     << std::endl
          << "   {"                                              << std::endl
-         << "      strncpy(tag,token,499);"                     << std::endl
+         << "      strncpy_s(tag,500,token,499);"               << std::endl
          << "      tag[499] = 0;"                               << std::endl
-         << "      return level/2;"                             << std::endl
+         << "      return (int)level/2;"                        << std::endl
          << "   }"                                              << std::endl
          << "   return -1;"                                     << std::endl
          << "}"                                                 << std::endl
@@ -1777,15 +1783,18 @@ void CodeBuilder::writeMatcher()
          << "{"                                                 << std::endl
          << "   char line[500];"                                << std::endl
          << "   char endTag[510];"                              << std::endl
-         << "   strncpy(line,d,499);"                           << std::endl
+         << "   strncpy_s(line,500,d,499);"                     << std::endl
          << "   line[499] = 0;"                                 << std::endl
-         << "   if (strstr(strtok(line,\"\\n\"),\"/>\") == 0)"  << std::endl
+         << "   size_t nleft = 499;"                            << std::endl
+         << "   char **ptr = 0;"                                << std::endl
+         << "   if (strstr(strtok_s(line,"
+         << "\"\\n\",ptr),\"/>\") == 0)"                        << std::endl
          << "   {"                                              << std::endl
-         << "      sprintf(endTag,\"</%s>\",tag);"              << std::endl
+         << "      snprintf(endTag,500,\"</%s>\",tag);"         << std::endl
          << "   }"                                              << std::endl
          << "   else"                                           << std::endl
          << "   {"                                              << std::endl
-         << "      strcpy(endTag,\"/>\");"                      << std::endl
+         << "      strncpy_s(endTag,500,\"/>\",499);"           << std::endl
          << "   }"                                              << std::endl
          << "   return strstr(d,endTag);"                       << std::endl
          << "}"                                                 << std::endl
@@ -1794,10 +1803,10 @@ void CodeBuilder::writeMatcher()
          << "{"                                                 << std::endl
          << "   char btag[500];"                                << std::endl
          << "   getTag(b,btag);"                                << std::endl
-         << "   b = index(b,'<');"                              << std::endl
-         << "   c = index(c,'<');"                              << std::endl
-         << "   *(index(b,'\\n')) = 0;"                         << std::endl
-         << "   *(index(c,'\\n')) = 0;"                         << std::endl
+         << "   b = strchr(b,'<');"                             << std::endl
+         << "   c = strchr(c,'<');"                             << std::endl
+         << "   *(strchr(b,'\\n')) = 0;"                        << std::endl
+         << "   *(strchr(c,'\\n')) = 0;"                        << std::endl
          << "   fprintf(stderr,\"HDDM warning: \");"            << std::endl
          << "   fprintf(stderr,\"tag %s in input file \", btag);" << std::endl
          << "   fprintf(stderr,\"does not match c header hddm_"
@@ -1808,8 +1817,8 @@ void CodeBuilder::writeMatcher()
                                                                 << std::endl
          << "   fprintf(stderr,\" rebuild to cure the problem ===\\n\");"
                                                                 << std::endl
-         << "   *(index(b,0)) = '\\n';"                         << std::endl
-         << "   *(index(c,0)) = '\\n';"                         << std::endl
+         << "   *(strchr(b,0)) = '\\n';"                        << std::endl
+         << "   *(strchr(c,0)) = '\\n';"                        << std::endl
          << "}"                                                 << std::endl
                                                                 << std::endl
          << "static int tag_strncmp(char* a, char* b, int len)" << std::endl
@@ -1846,7 +1855,7 @@ void CodeBuilder::writeMatcher()
          << "      {"                                           << std::endl
          << "         popNode* this1 = "
          << "(popNode*)malloc(sizeof(popNode));"                << std::endl
-         << "         int len = index(c+1,'\\n') - c;"          << std::endl
+         << "         int len = (int)(strchr(c+1,'\\n') - c);"  << std::endl
          << "         if (tag_strncmp(c,b,len) != 0)"           << std::endl
          << "         {"                                        << std::endl
          << "            collide(b,c);"                         << std::endl
@@ -1883,8 +1892,8 @@ void CodeBuilder::writeMatcher()
 
    cFile << "         this1->inParent = ptrSeqNo;"              << std::endl
          << "         this1->popListLength = 0;"                << std::endl
-         << "         c = index(c+1,'\\n');"                    << std::endl
-         << "         b = index(b+1,'\\n');"                    << std::endl
+         << "         c = strchr(c+1,'\\n');"                   << std::endl
+         << "         b = strchr(b+1,'\\n');"                   << std::endl
          << "         while (getTag(b,btag) > blevel)"          << std::endl
          << "         {"                                        << std::endl
          << "            this1->popList[this1->popListLength++] = matches(b,c);"
@@ -1899,14 +1908,14 @@ void CodeBuilder::writeMatcher()
          << "               exit(9);"                           << std::endl
          << "            }"                                     << std::endl
          << "            b = getEndTag(b,btag);"                << std::endl
-         << "            b = index(b+1,'\\n');"                 << std::endl
+         << "            b = strchr(b+1,'\\n');"                << std::endl
          << "         }"                                        << std::endl
          << "         return this1;"                            << std::endl
          << "      }"                                           << std::endl
          << "      else"                                        << std::endl
          << "      {"                                           << std::endl
          << "         c = getEndTag(c,ctag);"                   << std::endl
-         << "         c = index(c+1,'\\n');"                    << std::endl
+         << "         c = strchr(c+1,'\\n');"                   << std::endl
          << "         ++ptrSeqNo;"                              << std::endl
          << "      }"                                           << std::endl
          << "   }"                                              << std::endl
@@ -1940,7 +1949,7 @@ void CodeBuilder::constructOpenFunc(DOMElement* el)
          << "   char* nullfilename=(char*)\"\";"                << std::endl
          << "   if (filename)"                                  << std::endl
          << "   {"                                              << std::endl
-         << "      fp->fd = fopen(filename,\"r\");"             << std::endl
+         << "      fopen_s(&fp->fd,filename,\"r\");"            << std::endl
          << "   }"                                              << std::endl
          << "   else"                                           << std::endl
          << "   {"                                              << std::endl
@@ -2002,9 +2011,9 @@ void CodeBuilder::constructOpenFunc(DOMElement* el)
          << "      fprintf(stderr,\"  Please recompile.\\n\");" << std::endl
          << "      exit(9);"                                    << std::endl
          << "   }"                                              << std::endl
-         << "   fp->filename = "
-         << "(char*)malloc(strlen(filename) + 1);"              << std::endl
-         << "   strcpy(fp->filename,filename);"                 << std::endl
+         << "   int len = (int)strlen(filename);"               << std::endl
+         << "   fp->filename = (char*)malloc(len + 1);"         << std::endl
+         << "   strncpy_s(fp->filename,len+1,filename,len);"    << std::endl
          << "   fp->xdrs = (XDR*)malloc(sizeof(XDR));"          << std::endl
          << "   fp->iobuffer = (char*)malloc(fp->iobuffer_size"
             " = hddm_" + classPrefix + "_buffersize);"          << std::endl
@@ -2035,7 +2044,7 @@ void CodeBuilder::constructInitFunc(DOMElement* el)
          << "malloc(sizeof(" << classPrefix << "_iostream_t));" << std::endl
          << "   if (filename)"                                  << std::endl
          << "   {"                                              << std::endl
-         << "      fp->fd = fopen(filename,\"w\");"             << std::endl
+         << "      fopen_s(&fp->fd,filename,\"w\");"            << std::endl
          << "   }"                                              << std::endl
          << "   else"                                           << std::endl
          << "   {"                                              << std::endl
@@ -2048,11 +2057,11 @@ void CodeBuilder::constructInitFunc(DOMElement* el)
          << "      return 0;"                                   << std::endl
          << "   }"                                              << std::endl
          << "   fp->iomode = HDDM_STREAM_OUTPUT;"               << std::endl
-         << "   len = strlen(HDDM_"
+         << "   len = (int)strlen(HDDM_"
          << classPrefix << "_DocumentString);"                  << std::endl
          << "   head = (char*)malloc(len+1);"                   << std::endl
-         << "   strcpy(head,HDDM_"
-         << classPrefix << "_DocumentString);"                  << std::endl
+         << "   strncpy_s(head,len+1,HDDM_"
+         << classPrefix << "_DocumentString,len);"              << std::endl
          << "   if (fwrite(head,1,len,fp->fd) != len)"          << std::endl
          << "   {"                                              << std::endl
          << "      fprintf(stderr,\"HDDM Error: \");"           << std::endl
@@ -2060,9 +2069,9 @@ void CodeBuilder::constructInitFunc(DOMElement* el)
          << "      fprintf(stderr,\"output file %s\\n\",filename);" << std::endl
          << "      exit(9);"                                    << std::endl
          << "   }"                                              << std::endl
-         << "   fp->filename = "
-         << "(char*)malloc(strlen(filename) + 1);"              << std::endl
-         << "   strcpy(fp->filename,filename);"                 << std::endl
+         << "   len = (int)strlen(filename);"                   << std::endl
+         << "   fp->filename = (char*)malloc(len + 1);"         << std::endl
+         << "   strncpy_s(fp->filename,len+1,filename,len);"    << std::endl
          << "   fp->popTop = 0;"                                << std::endl
          << "   fp->xdrs = (XDR*)malloc(sizeof(XDR));"          << std::endl
          << "   fp->iobuffer = (char*)malloc(fp->iobuffer_size"
@@ -2124,7 +2133,7 @@ void CodeBuilder::constructDocument(DOMElement* el)
    XtString tagS(el->getTagName());
    cFile << "<" << tagS;
    DOMNamedNodeMap* attrList = el->getAttributes();
-   int attrListLength = attrList->getLength();
+   size_t attrListLength = attrList->getLength();
    for (int a = 0; a < attrListLength; a++)
    {
       DOMNode* node = attrList->item(a);
@@ -2134,7 +2143,7 @@ void CodeBuilder::constructDocument(DOMElement* el)
    }
 
    DOMNodeList* contList = el->getChildNodes();
-   int contListLength = contList->getLength();
+   size_t contListLength = contList->getLength();
    if (contListLength > 0)
    {
       cFile << ">\\n\"" << std::endl;

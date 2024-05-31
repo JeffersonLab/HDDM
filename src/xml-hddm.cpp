@@ -52,7 +52,11 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <rpc/xdr.h>
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <fstream>
 #include <string>
@@ -152,9 +156,9 @@ int main(int argC, char* argV[])
    }
 
 #if defined OLD_STYLE_XERCES_PARSER
-   DOMDocument* document = parseInputDocument(templFilename.c_str(),true);
+   xercesc::DOMDocument* document = parseInputDocument(templFilename.c_str(),true);
 #else
-   DOMDocument* document = buildDOMDocument(templFilename.c_str(),true);
+   xercesc::DOMDocument* document = buildDOMDocument(templFilename.c_str(),true);
 #endif
    if (document == 0)
    {
@@ -180,7 +184,7 @@ int main(int argC, char* argV[])
    XString xmlFile;
    if (argInd == argC)
    {
-      ifs = new std::ifstream(0);
+      ifs = new std::ifstream;
    }
    else if (argInd == argC - 1)
    {
@@ -356,8 +360,8 @@ void HDDMmaker::constructDocument(DOMElement* el)
    XString tagS(el->getTagName());
    *ofs << "<" << tagS;
    DOMNamedNodeMap* attrList = el->getAttributes();
-   int attrListLength = attrList->getLength();
-   for (int a = 0; a < attrListLength; a++)
+   size_t attrListLength = attrList->getLength();
+   for (size_t a = 0; a < attrListLength; a++)
    {
       DOMNode* node = attrList->item(a);
       XString nameS(node->getNodeName());
@@ -366,12 +370,12 @@ void HDDMmaker::constructDocument(DOMElement* el)
    }
 
    DOMNodeList* contList = el->getChildNodes();
-   int contListLength = contList->getLength();
+   size_t contListLength = contList->getLength();
    if (contListLength > 0)
    {
       *ofs << ">" << std::endl;
       indent++;
-      for (int c = 0; c < contListLength; c++)
+      for (size_t c = 0; c < contListLength; c++)
       {
          DOMNode* node = contList->item(c);
          if (node->getNodeType() == DOMNode::ELEMENT_NODE)
@@ -402,12 +406,12 @@ void HDDMmaker::outputStream(DOMElement* thisEl, DOMElement* modelEl,
    XString thisS(thisEl->getTagName());
 
    DOMNamedNodeMap* modelAttrList = modelEl->getAttributes();
-   int modelAttrListLength = modelAttrList->getLength();
+   size_t modelAttrListLength = modelAttrList->getLength();
    DOMNamedNodeMap* thisAttrList = thisEl->getAttributes();
-   int thisAttrListLength = thisAttrList->getLength();
+   size_t thisAttrListLength = thisAttrList->getLength();
    XString minS(modelEl->getAttribute(X("minOccurs")));
    XString maxS(modelEl->getAttribute(X("maxOccurs")));
-   int expectAttrCount = modelAttrList->getLength()
+   size_t expectAttrCount = modelAttrList->getLength()
                          - (minS == ""? 0 : 1)
                          - (maxS == ""? 0 : 1);
    if (thisAttrListLength != expectAttrCount)
@@ -431,7 +435,7 @@ void HDDMmaker::outputStream(DOMElement* thisEl, DOMElement* modelEl,
       {
          continue;
       }
-      else if (valueS == "" and typeS != "string")
+      else if (valueS == "" && typeS != "string")
       {
          std::cerr
               << "xml-hddm: Inconsistency in input xml document" << std::endl
@@ -521,10 +525,10 @@ void HDDMmaker::outputStream(DOMElement* thisEl, DOMElement* modelEl,
    }
 
    DOMNodeList* thisList = thisEl->getChildNodes();
-   int thisListLength = thisList->getLength();
+   size_t thisListLength = thisList->getLength();
    DOMNodeList* modelList = modelEl->getChildNodes();
-   int modelListLength = modelList->getLength();
-   for (int m = 0; m < modelListLength; m++)
+   size_t modelListLength = modelList->getLength();
+   for (size_t m = 0; m < modelListLength; m++)
    {
       DOMNode* mode = modelList->item(m);
       short type = mode->getNodeType();

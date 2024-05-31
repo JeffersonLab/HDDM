@@ -34,8 +34,8 @@ class ostreambuf: public xstream::ostreambuf
 
         std::streambuf* _sb;
         char delim;
-        unsigned int delim_w;
-        unsigned int col;
+        size_t delim_w;
+        size_t col;
 
         char buf[3]; /*!< buffer to store non encoded data */
 
@@ -70,7 +70,7 @@ class ostreambuf: public xstream::ostreambuf
          * \brief Takes care of inserting delimiters every \c delim_w characters
          */
 
-        int write(const char* buf, size_t len);
+        size_t write(const char* buf, size_t len);
         
     public:
         /*!

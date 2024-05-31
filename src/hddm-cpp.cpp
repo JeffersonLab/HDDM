@@ -84,7 +84,11 @@
 
 #include <particleType.h>
 #include <errno.h>
+#ifdef _WIN32
+#include <unistd_win32.h>
+#else
 #include <unistd.h>
+#endif
 
 #include <string>
 #include <vector>
@@ -292,9 +296,9 @@ int main(int argC, char* argV[])
    ifs.close();
 
 #if defined OLD_STYLE_XERCES_PARSER
-   DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = parseInputDocument(tmpFileStr.str().c_str(),false);
 #else
-   DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
+   xercesc::DOMDocument* document = buildDOMDocument(tmpFileStr.str().c_str(),false);
 #endif
    if (document == 0)
    {
@@ -406,12 +410,18 @@ int main(int argC, char* argV[])
    "#include <climits>\n"
    "\n"
    "#ifdef HDF5_SUPPORT\n"
+   "#ifdef _WIN32\n"
+   "#define ssize_t PRIVATE_SSIZE_T_JUST_FOR_H5\n"
+   "#endif\n"
    "#include <H5Fpublic.h>\n"
    "#include <H5Tpublic.h>\n"
    "#include <H5Ppublic.h>\n"
    "#include <H5Spublic.h>\n"
    "#include <H5Dpublic.h>\n"
    "#include <H5LTpublic.h>\n"
+   "#ifdef _WIN32\n"
+   "#undef ssize_t\n"
+   "#endif\n"
    "#endif\n"
    "\n"
    "#define MY_SETUP thread_private_data *my_private = lookup_private_data();\n"
@@ -479,8 +489,8 @@ int main(int argC, char* argV[])
    "\n"
    "class streamposition {\n"
    " public:\n"
-   "   uint64_t block_start;\n"
-   "   uint32_t block_offset;\n"
+   "   std::streampos block_start;\n"
+   "   std::streamoff block_offset;\n"
    "   uint32_t block_status;\n"
    "   streamposition();\n"
    "   streamposition(uint64_t start, uint32_t offset, uint32_t status);\n"
@@ -540,10 +550,12 @@ int main(int argC, char* argV[])
    "\n"
    "   void seekg(std::streampos pos) {\n"
    "      reset();\n"
-   "      gbump(pos);\n"
+   "      for (; pos > INT_MAX; pos -= INT_MAX)\n"
+   "         gbump(INT_MAX);\n"
+   "      gbump(int(pos));\n"
    "   }\n"
    "\n"
-   "   int size() {\n"
+   "   std::streamoff size() {\n"
    "      return egptr() - gptr();\n"
    "   }\n"
    "\n"
@@ -570,10 +582,12 @@ int main(int argC, char* argV[])
    "\n"
    "   void seekp(std::streampos pos) {\n"
    "      reset();\n"
-   "      pbump(pos);\n"
+   "      for (; pos > INT_MAX; pos -= INT_MAX)\n"
+   "         pbump(INT_MAX);\n"
+   "      pbump(int(pos));\n"
    "   }\n"
    "\n"
-   "   int size() {\n"
+   "   std::streamoff size() {\n"
    "      return pptr() - pbase();\n"
    "   }\n"
    "\n"
@@ -598,8 +612,8 @@ int main(int argC, char* argV[])
    "   int getIntegrityChecks() const;\n"
    "   void setIntegrityChecks(int flags);\n"
    "   streamposition getPosition();\n"
-   "   int getBytesWritten() const;\n"
-   "   int getRecordsWritten() const;\n"
+   "   size_t getBytesWritten() const;\n"
+   "   size_t getRecordsWritten() const;\n"
    " //protected:\n"
    "   xstream::xdr::ostream *getXDRostream() {\n"
    "      return my_thread_private[threads::ID]->m_xstr;\n"
@@ -625,8 +639,8 @@ int main(int argC, char* argV[])
    "      std::streamoff m_last_offset;\n"
    "      int m_status_bits;\n"
    "      int m_mutex_lock;\n"
-   "      int m_bytes_written;\n"
-   "      int m_records_written;\n"
+   "      std::streamoff m_bytes_written;\n"
+   "      std::streamoff m_records_written;\n"
    "   } thread_private_data;\n"
    "\n"
    "   thread_private_data *my_thread_private[threads::max_threads];\n"
@@ -655,8 +669,8 @@ int main(int argC, char* argV[])
    "   int getIntegrityChecks() const;\n"
    "   streamposition getPosition();\n"
    "   void setPosition(const streamposition &pos);\n"
-   "   int getBytesRead() const;\n"
-   "   int getRecordsRead() const;\n"
+   "   size_t getBytesRead() const;\n"
+   "   size_t getRecordsRead() const;\n"
    "   bool eof();\n"
    "   bool operator!();\n"
    "   operator void*();\n"
@@ -670,10 +684,10 @@ int main(int argC, char* argV[])
    "\n"
    " private:\n"
    "   std::string m_documentString;\n"
-   "   chromosome synthesize(const std::string &src, int p_src,\n"
-   "                         const std::string &ref, int p_ref);\n"
-   "   int getTag(const std::string &src, int p_src, std::string &tag, int &level);\n"
-   "   int getEndTag(const std::string &src, int p_src, const std::string &tag);\n"
+   "   chromosome synthesize(const std::string &src, size_t p_src,\n"
+   "                         const std::string &ref, size_t p_ref);\n"
+   "   size_t getTag(const std::string &src, size_t p_src, std::string &tag, int &level);\n"
+   "   size_t getEndTag(const std::string &src, size_t p_src, const std::string &tag);\n"
    "   void collide(const std::string &itag, const std::string &rtag);\n"
    "   void configure_streambufs();\n"
    "   void update_streambufs();\n"
@@ -701,8 +715,8 @@ int main(int argC, char* argV[])
    "      std::streamoff m_next_start;\n"
    "      int m_status_bits;\n"
    "      int m_mutex_lock;\n"
-   "      int m_bytes_read;\n"
-   "      int m_records_read;\n"
+   "      size_t m_bytes_read;\n"
+   "      size_t m_records_read;\n"
    "      bool m_hit_eof;\n"
    "   } thread_private_data;\n"
    "\n"
@@ -1240,6 +1254,7 @@ int main(int argC, char* argV[])
    "\n"
    "#ifndef _FILE_OFFSET_BITS\n"
    "# define _FILE_OFFSET_BITS 64\n"
+   "# define _LARGEFILE64_SOURCE 1\n"
    "#endif\n"
    "\n"
    "using namespace hddm_" << classPrefix << ";\n"
@@ -1256,7 +1271,7 @@ int main(int argC, char* argV[])
    "      return true;\n"
    "   }\n"
    "   else {\n"
-   "      int len = a.length();\n"
+   "      size_t len = a.length();\n"
    "      int ia=0;\n"
    "      int ib=0;\n"
    "      for (; a[ia] == b[ib]; ++ia, ++ib, --len) {}\n"
@@ -1853,8 +1868,8 @@ int main(int argC, char* argV[])
    "   MY(mutex_lock) = 0;\n"
    "}\n"
    "\n"
-   "int istream::getTag(const std::string &src, int start,\n"
-   "                    std::string &tag, int &level)\n"
+   "size_t istream::getTag(const std::string &src, size_t start,\n"
+   "                       std::string &tag, int &level)\n"
    "{\n"
    "   tag = \"\";\n"
    "   size_t p_btag = src.find(\"<\",start);\n"
@@ -1867,7 +1882,7 @@ int main(int argC, char* argV[])
    "   {\n"
    "      ++p_bline;\n"
    "   }\n"
-   "   level = (p_btag-p_bline)/2;\n"
+   "   level = int(p_btag-p_bline)/2;\n"
    "   size_t p_etag = p_btag;\n"
    "   for (size_t quotes=0; p_etag < src.size(); ++p_etag) {\n"
    "      if (src[p_etag] == '\"') {\n"
@@ -1900,8 +1915,8 @@ int main(int argC, char* argV[])
    "   return p_etag+2;\n"
    "}\n"
    "\n"
-   "int istream::getEndTag(const std::string &src, int start,\n"
-   "                       const std::string &tag)\n"
+   "size_t istream::getEndTag(const std::string &src, size_t start,\n"
+   "                          const std::string &tag)\n"
    "{\n"
    "   if (tag.rfind(\"/>\") == tag.size()-2) {\n"
    "      return src.find(tag,start) + tag.size()+1;\n"
@@ -1951,8 +1966,8 @@ int main(int argC, char* argV[])
    "   }\n"
    "}\n"
    "\n"
-   "chromosome istream::synthesize(const std::string &src, int p_src,\n"
-   "                               const std::string &ref, int p_ref)\n"
+   "chromosome istream::synthesize(const std::string &src, size_t p_src,\n"
+   "                               const std::string &ref, size_t p_ref)\n"
    "{\n"
    "   chromosome chrom;\n"
    "   int slevel, rlevel;\n"
@@ -1970,7 +1985,7 @@ int main(int argC, char* argV[])
    "      return chrom;\n"
    "   }\n"
    "\n"
-   "   int p2_src, p2_ref;\n"
+   "   size_t p2_src, p2_ref;\n"
    "   int s2level, r2level;\n"
    "   std::string s2tag, r2tag;\n"
    "   getTag(src,p2_src=p_src,s2tag,s2level);\n"
@@ -2118,7 +2133,7 @@ void CodeBuilder::checkConsistency(DOMElement* el, DOMElement* elref)
 
    DOMNamedNodeMap* oldAttr = elref->getAttributes();
    DOMNamedNodeMap* newAttr = el->getAttributes();
-   unsigned int listLength = oldAttr->getLength();
+   size_t listLength = oldAttr->getLength();
    for (unsigned int n = 0; n < listLength; n++)
    {
       XtString nameS(oldAttr->item(n)->getNodeName());
@@ -2550,7 +2565,7 @@ void CodeBuilder::writeClassdef(DOMElement* el)
             << std::endl
             << "   static std::string hdf5DocumentString(hid_t file_id);"
             << std::endl
-            << "   static long int hdf5GetEntries(hid_t file_id);"
+            << "   static hsize_t hdf5GetEntries(hid_t file_id);"
             << std::endl
             << "   static herr_t hdf5SetChunksize(hid_t file_id,"
             << " hsize_t chunksize);"
@@ -2638,7 +2653,7 @@ void CodeBuilder::constructGroup(DOMElement* el)
 
    parentList.push_back(el);
    DOMNodeList* contList = el->getChildNodes();
-   int contLength = contList->getLength();
+   size_t contLength = contList->getLength();
    for (int c = 0; c < contLength; c++)
    {
       DOMNode* cont = contList->item(c);
@@ -3509,10 +3524,10 @@ void CodeBuilder::writeClassimp(DOMElement* el)
          << "      H5LTdtype_to_text(tid, ddlstring, H5LT_DDL, &slen);" << std::endl
          << "      if (inmemory)" << std::endl
          << "         printf(\"=== in-memory datatype %ld for %s is:\\n %s\\n\","
-         << " tid, \"" << tagS << "\", ddlstring);" << std::endl
+         << " (long int)tid, \"" << tagS << "\", ddlstring);" << std::endl
          << "      else" << std::endl
          << "         printf(\"=== on-disk datatype %ld for %s is:\\n %s\\n\","
-         << " tid, \"" << tagS << "\", ddlstring);" << std::endl
+         << " (long int)tid, \"" << tagS << "\", ddlstring);" << std::endl
          << "      free(ddlstring);" << std::endl
          << "   }" << std::endl
          << "   return tid;" << std::endl
@@ -3617,7 +3632,7 @@ void CodeBuilder::writeClassimp(DOMElement* el)
             << "   H5Dclose(stamp_id);" << std::endl
             << "   return sstamp;" << std::endl
             << "}" << std::endl;
-      cFile << "long int " << tagS.simpleType()
+      cFile << "hsize_t " << tagS.simpleType()
             << "::hdf5GetEntries(hid_t file_id)" << std::endl
             << "{" << std::endl
             << "   hid_t eventspace_id;" << std::endl
@@ -3765,7 +3780,7 @@ void CodeBuilder::writeClassimp(DOMElement* el)
             << "{" << std::endl
             << "   hdf5_record_t hdf5_record;" << std::endl
             << "   int size;\n" << std::endl
-            << "   int len;\n" << std::endl;
+            << "   size_t len;\n" << std::endl;
       parentTable_t::iterator piter;
       for (piter = parents.begin(); piter != parents.end(); ++piter)
       {
@@ -3784,7 +3799,7 @@ void CodeBuilder::writeClassimp(DOMElement* el)
                   << "      " << dnameS.simpleType() << " *p = "
                   << "(" << dnameS.simpleType() << "*)hdf5_record.vl_"
                   << dnameS << ".p;" << std::endl
-                  << "      for (int i=0; i < len; ++i, ++iter) {" << std::endl
+                  << "      for (int i=0; i < (int)len; ++i, ++iter) {" << std::endl
                   << "         hdf5_memcpy(p+i, *iter, size);" << std::endl
                   << "         p[i].hdf5DataPack();" << std::endl
                   << "      }" << std::endl
@@ -3976,7 +3991,7 @@ void CodeBuilder::writeClassimp(DOMElement* el)
             << std::endl
             << "                        H5P_DEFAULT, &m_hdf5_record);"
             << std::endl
-            << "   int len;" << std::endl;
+            << "   size_t len;" << std::endl;
       for (piter = parents.begin(); piter != parents.end(); ++piter)
       {
          XtString dnameS(piter->first);
@@ -3986,7 +4001,7 @@ void CodeBuilder::writeClassimp(DOMElement* el)
                   << "      " << dnameS.simpleType() << " *p ="
                   << "(" << dnameS.simpleType() << "*)"
                   << "m_hdf5_record.vl_" << dnameS << ".p;" << std::endl
-                  << "      for (int i=0; i < len; ++i ) {" << std::endl
+                  << "      for (int i=0; i < (int)len; ++i ) {" << std::endl
                   << "         m_" << dnameS << "_plist.push_back("
                   << "new(p+i) " << dnameS.simpleType() << ");"
                   << std::endl
@@ -4231,7 +4246,7 @@ void CodeBuilder::writeStreamers(DOMElement* el)
 
    std::vector<XtString> contV;
    DOMNodeList* contList = el->getChildNodes();
-   int contListLength = contList->getLength();
+   size_t contListLength = contList->getLength();
    for (int c = 0; c < contListLength; c++)
    {
       DOMNode* node = contList->item(c);
@@ -4350,16 +4365,16 @@ void CodeBuilder::constructIOstreams(DOMElement* el)
    "   return (int)m_status_bits & k_bits_integrity;\n"
    "}\n"
    "\n"
-   "inline int istream::getBytesRead() const {\n"
-   "   int bytes = 0;\n"
+   "inline size_t istream::getBytesRead() const {\n"
+   "   size_t bytes = 0;\n"
    "   for (int i=1; i < threads::max_threads; ++i)\n"
    "      if (my_thread_private[i])\n"
    "         bytes += my_thread_private[i]->m_bytes_read;\n"
    "   return bytes;\n"
    "}\n"
    "\n"
-   "inline int istream::getRecordsRead() const {\n"
-   "   int records = 0;\n"
+   "inline size_t istream::getRecordsRead() const {\n"
+   "   size_t records = 0;\n"
    "   for (int i=1; i < threads::max_threads; ++i)\n"
    "      if (my_thread_private[i])\n"
    "         records += my_thread_private[i]->m_records_read;\n"
@@ -4370,16 +4385,16 @@ void CodeBuilder::constructIOstreams(DOMElement* el)
    "   return (int)m_status_bits & k_bits_integrity;\n"
    "}\n"
    "\n"
-   "inline int ostream::getBytesWritten() const {\n"
-   "   int bytes = 0;\n"
+   "inline size_t ostream::getBytesWritten() const {\n"
+   "   size_t bytes = 0;\n"
    "   for (int i=1; i < threads::max_threads; ++i)\n"
    "      if (my_thread_private[i])\n"
    "         bytes += my_thread_private[i]->m_bytes_written;\n"
    "   return bytes;\n"
    "}\n"
    "\n"
-   "inline int ostream::getRecordsWritten() const {\n"
-   "   int records = 0;\n"
+   "inline size_t ostream::getRecordsWritten() const {\n"
+   "   size_t records = 0;\n"
    "   for (int i=1; i < threads::max_threads; ++i)\n"
    "      if (my_thread_private[i])\n"
    "         records += my_thread_private[i]->m_records_written;\n"
@@ -4507,7 +4522,7 @@ void CodeBuilder::constructDocument(DOMElement* el)
    XtString tagS(el->getTagName());
    hFile << "<" << tagS;
    DOMNamedNodeMap* attrList = el->getAttributes();
-   int attrListLength = attrList->getLength();
+   size_t attrListLength = attrList->getLength();
    for (int a = 0; a < attrListLength; a++)
    {
       DOMNode* node = attrList->item(a);
@@ -4517,7 +4532,7 @@ void CodeBuilder::constructDocument(DOMElement* el)
    }
 
    DOMNodeList* contList = el->getChildNodes();
-   int contListLength = contList->getLength();
+   size_t contListLength = contList->getLength();
    if (contListLength > 0)
    {
       hFile << ">\\n\"" << std::endl;
@@ -4590,5 +4605,5 @@ Particle_t lookupParticle(const std::string &name)
          return (Particle_t)p;
       }
    }
-   return Unknown;
+   return UnknownParticle;
 }

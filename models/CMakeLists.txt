@@ -2,9 +2,9 @@ set(MODELS exam1x sample_mc sample_s simple1 test1)
 set(CLASSES x       mc          s       a      v  )
 
 if(HDF5_FOUND)
-    list(APPEND EXTRA_LIBRARIES ${HDF5_LIBRARIES})
+    list(APPEND EXTRA_LIBRARIES ${HDF5_LIBRARIES} ${HDF5_HL_LIBRARIES})
     list(APPEND EXTRA_INCLUDE_DIRS ${HDF5_INCLUDE_DIRS})
-    SET(HDF5_SUPPORT 1)
+    set(HDF5_SUPPORT 1)
 endif()
 
 list(APPEND MODEL_INCLUDE_DIRS ${PROJECT_BINARY_DIR}
@@ -19,8 +19,12 @@ list(APPEND MODEL_INCLUDE_DIRS ${PROJECT_BINARY_DIR}
 
 add_custom_target(python_modules)
 
+set(CMAKE_MSVCIDE_RUN_PATH ${CMAKE_INSTALL_PREFIX}/bin)
+
 list(JOIN HDF5_INCLUDE_DIRS ":" HDF5_INCLUDE_PATH)
 list(JOIN HDF5_LIBRARIES ":" HDF5_LIBRARY_PATH)
+list(JOIN HDF5_HL_LIBRARIES ":" HDF5_HL_LIBRARY_PATH)
+string(JOIN ":" HDF5_LIBRARY_PATHS ${HDF5_LIBRARY_PATH} ${HDF5_HL_LIBRARY_PATH})
 list(LENGTH MODELS count)
 math(EXPR count "${count}-1")
 foreach(i RANGE ${count})
@@ -34,8 +38,15 @@ foreach(i RANGE ${count})
    )
    add_custom_target(python_module_${class}
      COMMAND hddm-py ${CMAKE_CURRENT_SOURCE_DIR}/${model}.hddm
-     COMMAND ${CMAKE_SOURCE_DIR}/scripts/python_module_builder.sh HDDM_DIR=${CMAKE_INSTALL_PREFIX} ${CMAKE_CURRENT_BINARY_DIR}/setup_hddm_${class}.py
-     DEPENDS hddm_${class}++.cpp
+     COMMAND ${CMAKE_SOURCE_DIR}/scripts/python_module_builder.sh
+             HDDM_DIR=${CMAKE_INSTALL_PREFIX}
+             XSTREAM_SRC=${CMAKE_SOURCE_DIR}/xstream
+             XSTREAM_DIR=${CMAKE_BINARY_DIR}/xstream
+             HDDM_SRC=${CMAKE_SOURCE_DIR}/src
+             HDF5_INCLUDE_DIRS=${HDF5_INCLUDE_PATH}
+             HDF5_LIBRARIES=${HDF5_LIBRARY_PATHS}
+             ${CMAKE_CURRENT_BINARY_DIR}/setup_hddm_${class}.py
+     DEPENDS hddm_${class}++.cpp xstream
    )
    add_dependencies(python_modules python_module_${class})
    add_library(${model} STATIC hddm_${class}.c hddm_${class}++.cpp)
