@@ -519,7 +519,7 @@ int main(int argC, char* argV[])
                                        << classPrefix << "::threads::getID - \"\n"
    "                                     \"thread count exceeds max_threads\");\n"
    "         }\n"
-   "         ID = ++next_unique_ID;\n"
+   "         ID = next_unique_ID;\n"
    "      }\n"
    "      return ID;\n"
    "   }\n"
