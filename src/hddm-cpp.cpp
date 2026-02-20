@@ -733,6 +733,8 @@ int main(int argC, char* argV[])
    "   virtual void clear() {}\n"
    "   virtual const void *getAttribute(const std::string &name,\n"
    "                                    hddm_type *atype=0) const {\n"
+   "      (void)name;\n"
+   "      (void)atype;\n"
    "      return 0;\n"
    "   }\n"
    "   virtual std::string toString(int /* indent=0 */) { return \"\"; }\n"
